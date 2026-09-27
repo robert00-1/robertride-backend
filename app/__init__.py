@@ -27,7 +27,9 @@ def create_app():
     # Enable CORS
     CORS(
         app,
-        origins=["http://localhost:5173"]
+        origins=["http://localhost:5173",
+        "https://robertride-frontend.vercel.app"         
+                 ]
     )
 
     db.init_app(app)

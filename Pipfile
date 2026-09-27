@@ -13,6 +13,7 @@ flask-jwt-extended = "*"
 requests = "*"
 flask-cors = "*"
 gunicorn = "*"
+psycopg = {extras = ["binary"], version = "*"}
 
 [dev-packages]
 pytest = "*"

@@ -28,7 +28,7 @@ def initiate_payment():
             "message": "Ride ID and phone are required"
         }, 400
 
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
 
     ride = Ride.query.filter_by(
         id=ride_id,

@@ -27,18 +27,28 @@ def initiate_payment():
         return {
             "message": "Ride ID and phone are required"
         }, 400
+    try:
+        ride_id = int(ride_id)
+    except (TypeError, ValueError):
+        return {
+            "message": "Ride ID must be a valid number"
+        }, 400    
 
     user_id = int(get_jwt_identity())
 
     ride = Ride.query.filter_by(
-        id=ride_id,
-        passenger_id=user_id
+        id=ride_id
+        
     ).first()
 
     if not ride:
         return {
             "message": "Ride not found"
         }, 404
+    if ride.passenger_id != user_id:
+        return {
+            "message": "You are not authorized for this ride"
+        }, 403
     if ride.status != "completed":
         return {
             "message": "Payment can only be made after the ride is completed"
@@ -222,7 +232,7 @@ def mpesa_callback():
 @jwt_required()
 def get_ride_payment(ride_id):
 
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
 
     ride = Ride.query.filter_by(
         id=ride_id,
@@ -265,7 +275,7 @@ def get_ride_payment(ride_id):
 @jwt_required()
 def get_payment(payment_id):
 
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
 
     payment = Payment.query.get(payment_id)
 

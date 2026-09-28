@@ -105,6 +105,12 @@ def initiate_payment():
 
     except Exception as e:
 
+        print("======== MPESA PAYMENT ERROR =========")
+        print("ERROR TYPE:" ,type(e).__name__)
+        print ("ERROR MESSAGE:", str(e))
+        print("========================================")
+
+
         db.session.delete(payment)
         db.session.commit()
 

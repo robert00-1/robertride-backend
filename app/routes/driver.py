@@ -437,7 +437,7 @@ def update_driver_location():
         return {
             "message": "Driver not found"
         }, 404
-    data = request.get_json() or []
+    data = request.get_json() or {}
 
     latitude = data.get("latitude")
     longitude = data.get("longitude")
@@ -525,15 +525,6 @@ def update_ride_status(ride_id):
         }, 400
     
     ride.status = new_status
-
-    if  new_status == "completed":
-
-        if (
-            ride.destination_latitude is not None
-            and ride.destination_longitude is not None
-        ):
-            driver.current_latitude = ride.destination_latitude
-            driver.current_longitude = ride.destination_longitude
 
     db.session.commit()
 

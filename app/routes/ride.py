@@ -3,13 +3,11 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models.ride import Ride
-from app.services.fare_service import ( calculate_fare, calculate_distance)
+from app.services.fare_service import calculate_fare
 from app.models.driver import Driver
 from app.models.ride_request import RideRequest
 from app.models.user import User
 from app.models.vehicle import Vehicle
-FARE_BASE = 100
-FARE_PER_KM = 50
 
 ride_bp = Blueprint(
     "ride",
@@ -48,16 +46,15 @@ def estimate_fare():
             "message": "Pickup and destination coordinates are required "
         }, 400
     
-    distance_km = calculate_distance(
+    result = calculate_fare(
         pickup_latitude,
         pickup_longitude,
         destination_latitude,
         destination_longitude
     )
 
-    fare = FARE_BASE + (
-        distance_km * FARE_PER_KM
-    )
+    distance_km = result["distance_km"]
+    fare = result["fare"]
     return {
         "pickup_location": pickup_location,
         "destination": destination,

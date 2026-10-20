@@ -1,8 +1,6 @@
 FARE_BASE = 100
 FARE_PER_KM = 50
 
-TEST_MODE = True
-
 DISTANCES = {
     ("Town", "Westlands"): 8.0,
     ("Westlands", "Town"): 8.0,
@@ -59,10 +57,7 @@ def calculate_fare(
         destination_longitude
     )
     
-    if TEST_MODE:
-        fare = 1
-    else:
-      fare = FARE_BASE + (
+    fare = FARE_BASE + (
         distance_km * FARE_PER_KM
     )
 

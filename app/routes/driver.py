@@ -149,6 +149,10 @@ def update_driver_status():
         return {
             "message": "Driver not found"
         }, 404
+    if driver.is_blocked:
+        return {
+            "message" : "Your account is blocked. Contact the administeator."
+        }, 403
     
     active_ride = Ride.query.filter(
         Ride.driver_id == driver.id,
@@ -187,7 +191,8 @@ def update_driver_status():
 def get_available_drivers():
 
     drivers = Driver.query.filter_by(
-        status="online"
+        status="online",
+        is_blocked=False
     ).all()
 
     result = []
@@ -258,6 +263,10 @@ def get_ride_requests():
         return {
             "message": "Driver not found"
         }, 404
+    if driver. is_blocked:
+        return {
+            "message": "Your driver account is blocked"
+        }, 403
 
     ride_requests = RideRequest.query.filter_by(
         driver_id=driver.id,
@@ -354,6 +363,10 @@ def accept_ride_request(request_id):
         return {
             "message": "Driver not found"
         }, 404
+    if driver.is_blocked:
+        return {
+            "message": "Your account is blocked and cannot accept rides."
+        }, 403
     
     ride_request = RideRequest.query.filter_by(
         id=request_id,

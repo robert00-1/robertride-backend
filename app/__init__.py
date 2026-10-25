@@ -17,6 +17,7 @@ from app.routes.auth import auth_bp
 from app.routes.ride import ride_bp
 from app.routes.payment import payment_bp
 from app.routes.driver import driver_bp
+from app.routes.admin import admin_bp
 
 
 def create_app():
@@ -40,6 +41,7 @@ def create_app():
     app.register_blueprint(ride_bp)
     app.register_blueprint(payment_bp)
     app.register_blueprint(driver_bp)
+    app.register_blueprint(admin_bp)
 
     @app.route("/")
     def home():

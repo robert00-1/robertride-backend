@@ -42,6 +42,12 @@ class Driver(db.Model):
         nullable=False,
         default="offline"
     )
+    is_blocked = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default=db.false()
+    )
 
     current_latitude = db.Column(
         db.Float,

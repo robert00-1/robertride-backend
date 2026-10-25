@@ -163,7 +163,8 @@ def request_driver(ride_id):
 
     driver = Driver.query.filter_by(
         id=driver_id,
-        status="online"
+        status="online",
+        is_blocked=False
     ).first()
 
     if not driver:

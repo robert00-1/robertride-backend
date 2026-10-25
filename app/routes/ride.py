@@ -1,5 +1,5 @@
 
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
@@ -9,7 +9,7 @@ from app.models.driver import Driver
 from app.models.ride_request import RideRequest
 from app.models.user import User
 from app.models.vehicle import Vehicle
-
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 ride_bp = Blueprint(
     "ride",
@@ -415,4 +415,91 @@ def get_ride_tracking(ride_id):
                 "plate_number": vehicle.plate_number if vehicle else None
             }
         }
+    }, 200
+def get_ride_share_serializer():
+    return URLSafeTimedSerializer(
+        current_app.config["JWT_SECRET_KEY"],
+        salt="robertride-live-share-v1"
+    )
+
+
+@ride_bp.route("/<int:ride_id>/share-link", methods=["POST"])
+@jwt_required()
+def create_ride_share_link(ride_id):
+    user_id = int(get_jwt_identity())
+
+    ride = Ride.query.filter_by(
+        id=ride_id,
+        passenger_id=user_id
+    ).first()
+
+    if not ride:
+        return {"message": "Ride not found"}, 404
+
+    if ride.status == "completed":
+        return {"message": "This ride has already been completed"}, 400
+
+    token = get_ride_share_serializer().dumps({
+        "ride_id": ride.id,
+        "passenger_id": ride.passenger_id
+    })
+
+    return {
+        "message": "Share link created successfully",
+        "token": token,
+        "expires_in_seconds": 86400
+    }, 200
+
+
+@ride_bp.route("/shared/<string:token>", methods=["GET"])
+def get_shared_ride_tracking(token):
+    try:
+        data = get_ride_share_serializer().loads(
+            token,
+            max_age=86400
+        )
+    except SignatureExpired:
+        return {"message": "This ride-sharing link has expired"}, 410
+    except BadSignature:
+        return {"message": "Invalid ride-sharing link"}, 404
+
+    ride = Ride.query.filter_by(
+        id=data.get("ride_id"),
+        passenger_id=data.get("passenger_id")
+    ).first()
+
+    if not ride:
+        return {"message": "Ride not found"}, 404
+
+    driver_data = None
+
+    if ride.driver_id:
+        driver = Driver.query.get(ride.driver_id)
+
+        if driver:
+            driver_data = {
+                "latitude": driver.current_latitude,
+                "longitude": driver.current_longitude,
+                "location_available": (
+                    driver.current_latitude is not None
+                    and driver.current_longitude is not None
+                )
+            }
+
+    return {
+        "ride": {
+            "id": ride.id,
+            "status": ride.status,
+            "pickup": {
+                "location": ride.pickup_location,
+                "latitude": ride.pickup_latitude,
+                "longitude": ride.pickup_longitude
+            },
+            "destination": {
+                "location": ride.destination,
+                "latitude": ride.destination_latitude,
+                "longitude": ride.destination_longitude
+            }
+        },
+        "driver": driver_data
     }, 200

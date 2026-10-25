@@ -1,6 +1,7 @@
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash
+import math
 
 from app.extensions import db
 from app.models.user import User
@@ -32,6 +33,29 @@ def register_driver():
     color = data.get("color")
     plate_number = data.get("plate_number")
 
+    stage_name = data.get("stage_name")
+    stage_latitude = data.get("stage_latitude")
+    stage_longitude = data.get("stage_longitude")
+
+    if not stage_name:
+        return {
+            "message" "Operating city or area is required"
+        }, 400
+
+    try:
+        stage_latitude = float(stage_latitude)
+        stage_longitude = float(stage_longitude)
+    except (TypeError, ValueError):
+        return {
+            "message": "Please provide valid operating location coordinate"
+        }, 400
+
+    if not (-90 <= stage_latitude <= 90 and
+            -180 <= stage_longitude <= 180):
+        return {
+            "message": "Operating location coordinates are invalid"
+        }, 400
+
     if not all([
         name,
         email,
@@ -46,7 +70,7 @@ def register_driver():
         return {
             "message": "All fields are required"
         }, 400
-    
+
     existing_user = User.query.filter(
         (User.phone == phone) |
         (User.email == email)
@@ -56,7 +80,7 @@ def register_driver():
         return {
             "message": "User with email or phone already exists"
         }, 409
-    
+
     existing_license = Driver.query.filter_by(
         license_number=license_number
     ).first()
@@ -65,7 +89,7 @@ def register_driver():
         return {
             "message": "License number already registered"
         }, 409
-    
+
     existing_plate = Vehicle.query.filter_by(
         plate_number=plate_number
     ).first()
@@ -74,7 +98,7 @@ def register_driver():
         return {
             "message": "Vehicle plate number already registered"
         }, 409
-    
+
     password_hash = generate_password_hash(password)
 
     user = User(
@@ -90,12 +114,12 @@ def register_driver():
 
     driver = Driver(
         user_id=user.id,
-        stage_name="Town",
-        stage_latitude=0.5143,
-        stage_longitude=35.2698,
+        stage_name=stage_name,
+        stage_latitude=stage_latitude,
+        stage_longitude=stage_longitude,
         license_number=license_number,
         status="offline"
-        
+
     )
 
     db.session.add(driver)
@@ -153,7 +177,7 @@ def update_driver_status():
         return {
             "message" : "Your account is blocked. Contact the administeator."
         }, 403
-    
+
     active_ride = Ride.query.filter(
         Ride.driver_id == driver.id,
         Ride.status.in_(["accepted", "arriving", "started"])
@@ -163,8 +187,8 @@ def update_driver_status():
         return {
             "message": "You already have an active ride. Complete it before accepting another ride."
         }, 400
-    
-    
+
+
     data = request.get_json() or {}
 
     status = data.get("status")
@@ -173,7 +197,7 @@ def update_driver_status():
         return {
             "message": "Status must be online or offline"
         }, 400
-    
+
     driver.status = status
 
     db.session.commit()
@@ -186,9 +210,44 @@ def update_driver_status():
             "status": driver.status
         }
     }, 200
+
 @driver_bp.route("/available", methods=["GET"])
 @jwt_required()
 def get_available_drivers():
+    pickup_lat = request.args.get("pickup_latitude", type=float)
+    pickup_lon = request.args.get("pickup_longitude", type=float)
+
+    # Validate pickup coordinates when the passenger supplies them.
+    if (pickup_lat is None) != (pickup_lon is None):
+        return {"message": "Both pickup coordinates are required"}, 400
+
+    if pickup_lat is not None:
+        if not (-90 <= pickup_lat <= 90):
+            return {"message": "Invalid pickup latitude"}, 400
+        if not (-180 <= pickup_lon <= 180):
+            return {"message": "Invalid pickup longitude"}, 400
+
+    def calculate_distance_km(lat1, lon1, lat2, lon2):
+        earth_radius_km = 6371.0
+
+        lat1, lon1, lat2, lon2 = map(
+            math.radians, [lat1, lon1, lat2, lon2]
+        )
+
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(lat1) * math.cos(lat2)
+            * math.sin(dlon / 2) ** 2
+        )
+
+        a = max(0.0, min(1.0, a))
+
+        return earth_radius_km * 2 * math.atan2(
+            math.sqrt(a), math.sqrt(1 - a)
+        )
 
     drivers = Driver.query.filter_by(
         status="online",
@@ -203,15 +262,10 @@ def get_available_drivers():
             Ride.status.in_(["accepted", "arriving", "started"])
         ).first()
 
-        user = User.query.get(driver.user_id)
-
-        vehicle = Vehicle.query.filter_by(
-            driver_id=driver.id
-        ).first()
         if active_ride:
             continue
-        user = User.query.get(driver.user_id)
 
+        user = User.query.get(driver.user_id)
         vehicle = Vehicle.query.filter_by(
             driver_id=driver.id
         ).first()
@@ -219,18 +273,41 @@ def get_available_drivers():
         if not user or not vehicle:
             continue
 
+        distance_km = None
+
+        if pickup_lat is not None:
+            # Use live GPS, never the driver's registered stage location.
+            lat = driver.current_latitude
+            lon = driver.current_longitude
+
+            if lat is None or lon is None:
+                continue
+
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                continue
+
+            distance_km = calculate_distance_km(
+                pickup_lat, pickup_lon, lat, lon
+            )
+
+            # Only match drivers within 10 km of the pickup point.
+            if distance_km > 10:
+                continue
+
         result.append({
             "driver_id": driver.id,
             "name": user.name,
             "phone": user.phone,
             "status": driver.status,
-
+            "distance_km": (
+                round(distance_km, 2)
+                if distance_km is not None else None
+            ),
             "stage": {
                 "name": driver.stage_name,
                 "latitude": driver.stage_latitude,
                 "longitude": driver.stage_longitude
             },
-
             "current_location": {
                 "latitude": driver.current_latitude,
                 "longitude": driver.current_longitude
@@ -244,10 +321,15 @@ def get_available_drivers():
             }
         })
 
+    # Put the closest live-GPS drivers first when pickup coordinates exist.
+    if pickup_lat is not None:
+        result.sort(key=lambda driver: driver["distance_km"])
+
     return {
         "message": "Available drivers retrieved successfully",
         "drivers": result
     }, 200
+
 
 @driver_bp.route("/ride-requests", methods=["GET"])
 @jwt_required()
@@ -312,7 +394,7 @@ def get_active_ride():
         return {
             "message": "Driver not found"
         }, 404
-    
+
     ride = Ride.query.filter(
         Ride.driver_id == driver.id,
         Ride.status.in_([
@@ -326,7 +408,7 @@ def get_active_ride():
         return {
             "message": "No active ride"
         }, 404
-    
+
     return {
         "message": "Active ride retrived successfully",
         "ride": {
@@ -367,7 +449,7 @@ def accept_ride_request(request_id):
         return {
             "message": "Your account is blocked and cannot accept rides."
         }, 403
-    
+
     ride_request = RideRequest.query.filter_by(
         id=request_id,
         driver_id=driver.id
@@ -378,12 +460,12 @@ def accept_ride_request(request_id):
         return {
             "message": "Ride request not found"
         }, 404
-    
+
     if ride_request.status != "pending":
         return {
             "message": "Ride request is no longer available"
         }, 400
-    
+
     ride = Ride.query.get(ride_request.ride_id)
 
     if not ride:
@@ -410,7 +492,7 @@ def accept_ride_request(request_id):
     else:
         start_latitude = driver.stage_latitude
         start_longitude = driver.stage_longitude
-        start_location = "stage"    
+        start_location = "stage"
 
     db.session.commit()
 
@@ -459,17 +541,17 @@ def update_driver_location():
         return {
             "message": "Latitude and longitude are required"
         }, 400
-    
+
     if latitude < -90 or latitude > 90:
         return {
             "message": "Invalid latitude"
         }, 400
-    
+
     if longitude < -180 or longitude > 180:
         return {
             "message": "Invalid longitude"
         }, 400
-    
+
     driver.current_latitude = latitude
     driver.current_longitude = longitude
 
@@ -506,7 +588,7 @@ def update_ride_status(ride_id):
         return {
             "message": "Ride not found or not assigned to you"
         }, 404
-    
+
     data = request.get_json() or {}
 
     new_status = data.get("status")
@@ -521,22 +603,22 @@ def update_ride_status(ride_id):
         return {
             "message": "Status must be arriving, started, or completed"
         }, 400
-    
+
     if ride.status == "accepted" and new_status != "arriving":
         return {
             "message": "Ride must be marked as arriving first"
         }, 400
-    
+
     if ride.status == "arriving" and new_status != "started":
         return {
             "message": "Ride must be started after arriving"
         }, 400
-    
+
     if ride.status == "started" and new_status != "completed":
         return {
             "message": "Ride must be completed after it has started"
         }, 400
-    
+
     ride.status = new_status
 
     db.session.commit()

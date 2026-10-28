@@ -39,7 +39,7 @@ def register_driver():
 
     if not stage_name:
         return {
-            "message" "Operating city or area is required"
+            "message": "Operating city or area is required"
         }, 400
 
     try:

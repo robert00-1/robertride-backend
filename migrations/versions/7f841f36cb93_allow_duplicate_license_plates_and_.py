@@ -16,21 +16,20 @@ depends_on = None
 
 
 def upgrade():
-    op.drop_constraint(
-        "drivers_license_number_key",
-        "drivers",
-        type_="unique"
-    )
-    op.drop_constraint(
-        "vehicles_plate_number_key",
-        "vehicles",
-        type_="unique"
-    )
-    op.drop_constraint(
-        "vehicles_color_key",
-        "vehicles",
-        type_="unique"
-    )
+    op.execute("""
+        ALTER TABLE drivers
+        DROP CONSTRAINT IF EXISTS drivers_license_number_key
+    """)
+
+    op.execute("""
+        ALTER TABLE vehicles
+        DROP CONSTRAINT IF EXISTS vehicles_plate_number_key
+    """)
+
+    op.execute("""
+        ALTER TABLE vehicles
+        DROP CONSTRAINT IF EXISTS vehicles_color_key
+    """)
 
 
 def downgrade():
@@ -39,11 +38,13 @@ def downgrade():
         "drivers",
         ["license_number"]
     )
+
     op.create_unique_constraint(
         "vehicles_plate_number_key",
         "vehicles",
         ["plate_number"]
     )
+
     op.create_unique_constraint(
         "vehicles_color_key",
         "vehicles",

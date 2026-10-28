@@ -36,8 +36,8 @@ class Vehicle(db.Model):
 
     plate_number = db.Column(
         db.String(20),
-        nullable=False,
-        unique=True
+        nullable=False
+        
     )
 
     created_at = db.Column(

@@ -33,8 +33,8 @@ class Driver(db.Model):
 
     license_number = db.Column(
         db.String(50),
-        nullable=False,
-        unique=True
+        nullable=False
+        
     )
 
     status = db.Column(

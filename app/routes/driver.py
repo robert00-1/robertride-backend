@@ -81,23 +81,6 @@ def register_driver():
             "message": "User with email or phone already exists"
         }, 409
 
-    existing_license = Driver.query.filter_by(
-        license_number=license_number
-    ).first()
-
-    if existing_license:
-        return {
-            "message": "License number already registered"
-        }, 409
-
-    existing_plate = Vehicle.query.filter_by(
-        plate_number=plate_number
-    ).first()
-
-    if existing_plate:
-        return {
-            "message": "Vehicle plate number already registered"
-        }, 409
 
     password_hash = generate_password_hash(password)
 
